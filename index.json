@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "templates": [
+    {
+      "name": "python-pandas",
+      "description": "Python runtime with pandas, numpy, and requests pre-installed",
+      "path": "templates/python-pandas",
+      "mvm_version": ">=0.18.0"
+    },
+    {
+      "name": "git",
+      "description": "MicroVM with git and a small SSH client for CI-style clones",
+      "path": "templates/git",
+      "mvm_version": ">=0.18.0"
+    },
+    {
+      "name": "slack",
+      "description": "Slack webhook bot worker with curl-based health checks",
+      "path": "templates/slack",
+      "mvm_version": ">=0.18.0"
+    }
+  ]
+}
