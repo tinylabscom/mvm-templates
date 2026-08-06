@@ -29,7 +29,12 @@ description = "..."
 default_vcpus = 1
 default_memory_mib = 256
 tags = ["..."]
+# Optional: extra files to download and copy into the generated project.
+files = ["app.py", "app/main.py"]
 ```
+
+`files` is required for SDK-style templates that ship source files in
+addition to the generated `flake.nix`.
 
 ### 2. Add a guest flake
 
