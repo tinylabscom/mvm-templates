@@ -82,6 +82,35 @@ under an `./app` directory.
 
 See the upstream [mkGuest guide](https://github.com/tinylabscom/mvm/blob/main/public/src/content/docs/guides/nix-flakes.md) for the full API.
 
+#### Without writing Nix: use the SDK
+
+If you prefer to write an ordinary Python/TypeScript/Node function instead of a
+flake, use the `mvm` SDK decorator. `mvmctl build compile` reads the file
+statically (it is never executed on the host) and emits the `flake.nix` + launch
+plan:
+
+```python
+# app.py
+import mvm
+
+@mvm.app(
+    image=mvm.python_image(python="3.12"),
+    resources=mvm.resources(cpu=1, memory_mb=256),
+    dependencies=mvm.python_deps(lockfile="uv.lock", tool="uv"),
+    env={"BANNER": mvm.literal("hi")},
+)
+def greet(name: str) -> str:
+    return f"hello {name}"
+```
+
+```bash
+mvmctl build compile app.py --out .
+```
+
+The generated `flake.nix` is what the template carries; the user who runs
+`mvmctl generate template <name> ./my-project` receives the SDK file *and* the
+pre-generated flake.
+
 ### 3. Register the template
 
 Add an entry to `index.json` with the matching `path` and an `mvm_version`
