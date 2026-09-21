@@ -26,6 +26,11 @@ rides the vsock egress plane:
   slirp4netns-style stack), and `traefik`/`servicelb` start disabled. Reach a
   workload from the host by declaring a signed ingress port at launch:
   `--port 8080:80`.
+- The kernel is the `workload-k8s` variant (tinylabscom/mvm#3572; ~+100
+  built-ins over the sealed workload kernel for cgroup/namespace/netfilter/
+  bridge plumbing). The sealed workload kernel cannot run a kubelet; the
+  flake wires the variant through mkGuest's `kernel` argument once the
+  mvm-images mirror publishes it.
 - The kubelet hard-requires `/dev/kmsg`; mvm's OCI device unpack allow-lists
   it and the guest kernel creates it via devtmpfs.
 

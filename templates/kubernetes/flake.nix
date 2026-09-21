@@ -5,6 +5,12 @@
   # bring-up is validated by the smoke test tracked in the mvm repo's
   # Kubernetes-in-microVM plan (W4). See README.md in this directory for the
   # constraints and the open items.
+  #
+  # Kernel wiring (after the mvm-images mirror of tinylabscom/mvm#3572 lands):
+  # add an input on the mvm-images kernel flake and pass
+  #   kernel = mvm-images-kernel.packages.<system>.workload-k8s-vmlinux;
+  # to mkGuest below. The sealed workload kernel required-disables CGROUPS /
+  # NAMESPACES / NETFILTER, so without this the guest cannot start a kubelet.
   inputs = {
     mvm.url = "github:tinylabscom/mvm?dir=nix";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
