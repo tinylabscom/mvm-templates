@@ -6,10 +6,8 @@ artifact: `mvmctl machine run` stands it up, `mvmctl machine stop` tears it
 down.
 
 **Status: experimental scaffold.** The image builds against the documented
-`mkGuest` API; rootless bring-up inside the busybox PID-1 guest is validated
-by the smoke test in the runtime plan (`specs/plans/2026-09-20-kubernetes-in-microvm.md`,
-W4, in the `mvm` repo). Runtime tracking: tinylabscom/mvm#3554; kernel audit:
-tinylabscom/mvm-images#9.
+`mkGuest` API. End-to-end bring-up, including the boot-image capability
+contract required by rootless k3s, is tracked in tinylabscom/mvm-templates#1.
 
 ## The guest networking contract
 
@@ -26,11 +24,11 @@ rides the vsock egress plane:
   slirp4netns-style stack), and `traefik`/`servicelb` start disabled. Reach a
   workload from the host by declaring a signed ingress port at launch:
   `--port 8080:80`.
-- The kernel is the `workload-k8s` variant (tinylabscom/mvm#3572; ~+100
-  built-ins over the sealed workload kernel for cgroup/namespace/netfilter/
-  bridge plumbing). The sealed workload kernel cannot run a kubelet; the
-  flake wires the variant through mkGuest's `kernel` argument once the
-  mvm-images mirror publishes it.
+- The generated workload image must provide cgroups, namespaces, netfilter,
+  and bridge/veth support. The template cannot select the host boot kernel via
+  `mkGuest`: its `kernel` argument only supplies modules to the rootfs. The
+  required image capability and end-to-end witness stay tracked in this
+  repository rather than creating a Kubernetes-specific external image.
 - The kubelet hard-requires `/dev/kmsg`; mvm's OCI device unpack allow-lists
   it and the guest kernel creates it via devtmpfs.
 
@@ -62,8 +60,8 @@ mvmctl machine exec k8s -- kubectl get nodes   # kubectl is on the guest PATH
 - RootlessKit single-uid mapping: whether k3s `--rootless` needs
   `newuidmap`/`newgidmap` + `/etc/sub{u,g}id` in this image, or runs in the
   single-mapping fallback.
-- cgroup v2 delegation to the workload uid (kernel audit, mvm-images#9) —
-  without it kubelet cgroup accounting is degraded.
+- cgroup v2 delegation to the workload uid — without it kubelet cgroup
+  accounting is degraded.
 - `bridge-nf-call-iptables` sysctls: normally set by a privileged init; the
   workload uid cannot set them. In-guest pod/service rules that depend on it
   are part of the audit.

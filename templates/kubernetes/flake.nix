@@ -1,16 +1,14 @@
 {
   description = "mvm microVM — single-node Kubernetes (k3s, rootless)";
 
-  # EXPERIMENTAL scaffold: the image builds and boots, but the rootless k3s
-  # bring-up is validated by the smoke test tracked in the mvm repo's
-  # Kubernetes-in-microVM plan (W4). See README.md in this directory for the
-  # constraints and the open items.
+  # EXPERIMENTAL scaffold: the image builds, but rootless k3s bring-up and its
+  # boot-image capability contract are tracked by this repository's issue #1.
+  # See README.md in this directory for the constraints and open items.
   #
-  # Kernel wiring (after the mvm-images mirror of tinylabscom/mvm#3572 lands):
-  # add an input on the mvm-images kernel flake and pass
-  #   kernel = mvm-images-kernel.packages.<system>.workload-k8s-vmlinux;
-  # to mkGuest below. The sealed workload kernel required-disables CGROUPS /
-  # NAMESPACES / NETFILTER, so without this the guest cannot start a kubelet.
+  # The template deliberately does not select a boot kernel. `mkGuest`'s
+  # `kernel` argument only supplies modules to the rootfs; the host boots the
+  # workload kernel from its generated image set. Kubernetes-specific image
+  # work and kernel variants do not belong outside this template repository.
   inputs = {
     mvm.url = "github:tinylabscom/mvm?dir=nix";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
