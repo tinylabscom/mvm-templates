@@ -40,7 +40,12 @@
           echo "  volume, e.g. --mount ./k3s-data:/data:20G:rw" >&2
           exit 1
         fi
-        mkdir -p "$DATA_DIR"
+        mkdir -p "$DATA_DIR" "$DATA_DIR/home"
+
+        # The k3s multicall binary extracts its asset data under HOME on every
+        # invocation (even `kubectl`); uid 1000's default HOME here is /, which
+        # is read-only. Point HOME at the writable data volume.
+        export HOME="$DATA_DIR/home"
 
         # Proxy env (ALL_PROXY/HTTP_PROXY/HTTPS_PROXY) is inherited from PID 1:
         # container image pulls and other outbound HTTPS ride the vsock egress
@@ -76,6 +81,12 @@
           rootfsPkg = mvm.lib.${system}.mkGuest {
             name = "kubernetes-vm";
 
+            # Dev console for the smoke test (exec/console drive the cluster),
+            # while the entrypoint keeps its rootless uid — mkGuest would
+            # otherwise run a dev image's entrypoint as root.
+            dev = true;
+            uids.entrypoint = 1000;
+
             # Sized for a control plane: 4 vCPU / 4 GiB. Container image
             # storage consumes the /data disk volume, not the read-only rootfs.
             vcpus = 4;
@@ -98,7 +109,11 @@
             # drop-in and serves ProbeStatus over vsock. Readiness = this node
             # is Ready.
             healthChecks.node-ready = {
-              healthCmd = "${pkgs.k3s}/bin/k3s kubectl --kubeconfig /data/k3s/k3s.yaml get nodes --no-headers | grep -q Ready";
+              # k3s is a multicall binary: even `kubectl` extracts its data
+              # dir on start, and as uid 1000 with HOME=/ that dies on the
+              # read-only root. Give it the writable data home the entrypoint
+              # provisions.
+              healthCmd = "env HOME=/data/k3s/home ${pkgs.k3s}/bin/k3s kubectl --kubeconfig /data/k3s/k3s.yaml get nodes --no-headers | grep -q Ready";
               healthIntervalSecs = 10;
               healthTimeoutSecs = 15;
             };
