@@ -112,25 +112,17 @@
             # current uid to a username to compute the uid/gid map, and
             # without an account the bring-up dies with "unknown userid
             # 901". Bake the identity the universal path actually uses.
+            # NB: mkGuest re-indents `content` when it embeds the file, so a
+            # whitespace-sensitive file like /etc/passwd must be a plain
+            # escaped string - an indented '' string leaks leading spaces
+            # into every line and breaks parsers.
             extraFiles."/etc/passwd" = {
               mode = "0644";
-              content = '''
-                root:x:0:0:root:/root:/bin/sh
-                mvm-egress:x:989:989:mvm FlowMux egress:/var/empty:/bin/false
-                mvm-agent:x:990:990:mvm guest agent:/var/empty:/bin/false
-                mvm-worker:x:1000:1000:mvm workload:/home/mvm-worker:/bin/sh
-                mvm-workload:x:901:901:mvm workload (universal path):/home/mvm-worker:/bin/sh
-              '';
+              content = "root:x:0:0:root:/root:/bin/sh\nmvm-egress:x:989:989:mvm FlowMux egress:/var/empty:/bin/false\nmvm-agent:x:990:990:mvm guest agent:/var/empty:/bin/false\nmvm-worker:x:1000:1000:mvm workload:/home/mvm-worker:/bin/sh\nmvm-workload:x:901:901:mvm workload (universal path):/home/mvm-worker:/bin/sh\n";
             };
             extraFiles."/etc/group" = {
               mode = "0644";
-              content = '''
-                root:x:0:
-                mvm-egress:x:989:
-                mvm-agent:x:990:
-                mvm-worker:x:1000:
-                mvm-workload:x:901:
-              '';
+              content = "root:x:0:\nmvm-egress:x:989:\nmvm-agent:x:990:\nmvm-worker:x:1000:\nmvm-workload:x:901:\n";
             };
 
             entrypoint.command = [ "/usr/local/bin/k3s-rootless-start" ];
