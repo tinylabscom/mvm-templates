@@ -59,14 +59,24 @@
         # implied); passing them kills the whole bring-up with a usage error
         # before k3s ever runs. --net=host is the load-bearing one: there is
         # no upstream interface for a slirp4netns-style stack to speak to.
-        exec ${pkgs.rootlesskit}/bin/rootlesskit \
-          --net=host \
-          ${pkgs.k3s}/bin/k3s server \
-          --rootless \
-          --data-dir="$DATA_DIR" \
-          --write-kubeconfig="$KUBECONFIG_OUT" \
-          --write-kubeconfig-mode=600 \
-          --disable=traefik,servicelb
+        # Bring-up shape, from live smoke findings: RootlessKit is out - v2
+        # still demands /etc/subuid plus a setuid newuidmap, and a sealed
+        # image can carry neither. Instead this is plain rootful k3s inside
+        # a user namespace (unshare -Urmp, the same primitive the generic
+        # rootless tenant probe exercises): inside it we are uid 0 with
+        # NET_ADMIN in the owned namespace, on the guest's single network
+        # (the NIC-less contract: no upstream exists for a slirp4netns-style
+        # stack). The kubelet hard-requires /dev/kmsg, which root-in-userns
+        # cannot read, so bind /dev/null over it inside the owned mount
+        # namespace - OOM events simply go unobserved.
+        exec unshare -Urmp sh -c '
+          mount --bind /dev/null /dev/kmsg 2>/dev/null || true
+          exec ${pkgs.k3s}/bin/k3s server \
+            --data-dir="$DATA_DIR" \
+            --write-kubeconfig="$KUBECONFIG_OUT" \
+            --write-kubeconfig-mode=600 \
+            --disable=traefik,servicelb
+        '
       '';
 
       kubectlWithConfig = pkgs.writeShellScriptBin "kubectl" ''
