@@ -55,8 +55,12 @@
         # for the dev/test tier this targets; add traefik/servicelb back when
         # ingress is needed (host reachability then goes through a declared
         # --port ingress forward, not a NodePort on a NIC).
+        # RootlessKit v2 dropped the --ipc/--uts flags (the namespaces are
+        # implied); passing them kills the whole bring-up with a usage error
+        # before k3s ever runs. --net=host is the load-bearing one: there is
+        # no upstream interface for a slirp4netns-style stack to speak to.
         exec ${pkgs.rootlesskit}/bin/rootlesskit \
-          --net=host --ipc=host --uts=host \
+          --net=host \
           ${pkgs.k3s}/bin/k3s server \
           --rootless \
           --data-dir="$DATA_DIR" \
