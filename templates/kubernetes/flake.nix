@@ -106,6 +106,32 @@
               source = startScript;
               mode = "0755";
             };
+            # The universal-initramfs path runs the workload as uid 901
+            # (mvm-agentd's WORKLOAD_UID), but mkGuest bakes accounts only
+            # for its own uids (989/990/1000). RootlessKit resolves the
+            # current uid to a username to compute the uid/gid map, and
+            # without an account the bring-up dies with "unknown userid
+            # 901". Bake the identity the universal path actually uses.
+            extraFiles."/etc/passwd" = {
+              mode = "0644";
+              content = '''
+                root:x:0:0:root:/root:/bin/sh
+                mvm-egress:x:989:989:mvm FlowMux egress:/var/empty:/bin/false
+                mvm-agent:x:990:990:mvm guest agent:/var/empty:/bin/false
+                mvm-worker:x:1000:1000:mvm workload:/home/mvm-worker:/bin/sh
+                mvm-workload:x:901:901:mvm workload (universal path):/home/mvm-worker:/bin/sh
+              '';
+            };
+            extraFiles."/etc/group" = {
+              mode = "0644";
+              content = '''
+                root:x:0:
+                mvm-egress:x:989:
+                mvm-agent:x:990:
+                mvm-worker:x:1000:
+                mvm-workload:x:901:
+              '';
+            };
 
             entrypoint.command = [ "/usr/local/bin/k3s-rootless-start" ];
 
