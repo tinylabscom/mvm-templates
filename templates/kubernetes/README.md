@@ -55,6 +55,24 @@ capability, refused by prod admission.
 mvmctl machine exec k8s -- kubectl get nodes   # kubectl is on the guest PATH
 ```
 
+## Relationship to the generic rootless tenant
+
+mvm-images owns a generic rootless capability floor (the `rootless-tenant`
+base and its `rootless` kernel: user/mount/PID/IPC/UTS namespaces, cgroup v2
+delegation, PTYs, crun + fuse-overlayfs, no guest NIC — see the mvm-images
+rootless image contract). This template builds on that contract but needs
+**more kernel than the generic floor provides**: every pod sandbox is a
+network namespace, so the guest kernel must also carry NET_NS plus the
+in-guest pod datapath (bridge/veth, netfilter). The generic `rootless`
+kernel deliberately omits NET_NS — it cannot host k3s. The template's
+boot-image capability is therefore "rootless floor + in-guest network
+namespaces", consumed via `mvmctl kernel build --which workload-k8s` today
+(the capability lands under a generic name when the kernel canon completes
+its move into mvm-images; tracked in tinylabscom/mvm-templates#1).
+
+Everything external still leaves over the vsock egress plane; the in-guest
+datapath carries only cluster-internal traffic.
+
 ## Open items the smoke test must settle
 
 - RootlessKit single-uid mapping: whether k3s `--rootless` needs
