@@ -65,34 +65,77 @@
       '';
     in
     {
-      packages.${system}.default = mvm.lib.${system}.mkGuest {
-        name = "kubernetes-vm";
+      # Wrapped in the builder-VM image contract (the shape mvm-images uses for
+      # every image): the runCommand output carries the rootfs + an in-nix
+      # serialized mvm-meta.json sidecar, and exposes the inner mkGuest rootfs
+      # as passthru.rootfs. A bare mkGuest output builds fine but leaves the
+      # runtime sidecar to a `nix eval` against a host path the builder VM
+      # cannot read — the build then refuses to boot its own output.
+      packages.${system}.default =
+        let
+          rootfsPkg = mvm.lib.${system}.mkGuest {
+            name = "kubernetes-vm";
 
-        # Sized for a control plane: 4 vCPU / 4 GiB. Container image storage
-        # consumes the /data disk volume, not the read-only rootfs.
-        vcpus = 4;
-        memory_mib = 4096;
+            # Sized for a control plane: 4 vCPU / 4 GiB. Container image
+            # storage consumes the /data disk volume, not the read-only rootfs.
+            vcpus = 4;
+            memory_mib = 4096;
 
-        packages = [
-          pkgs.k3s
-          pkgs.rootlesskit
-          kubectlWithConfig
-        ];
+            packages = [
+              pkgs.k3s
+              pkgs.rootlesskit
+              kubectlWithConfig
+            ];
 
-        extraFiles."/usr/local/bin/k3s-rootless-start" = {
-          source = startScript;
-          mode = "0755";
-        };
+            extraFiles."/usr/local/bin/k3s-rootless-start" = {
+              source = startScript;
+              mode = "0755";
+            };
 
-        entrypoint.command = [ "/usr/local/bin/k3s-rootless-start" ];
+            entrypoint.command = [ "/usr/local/bin/k3s-rootless-start" ];
 
-        # Declared to the guest agent's probe loop; the agent runs the drop-in
-        # and serves ProbeStatus over vsock. Readiness = this node is Ready.
-        healthChecks.node-ready = {
-          healthCmd = "${pkgs.k3s}/bin/k3s kubectl --kubeconfig /data/k3s/k3s.yaml get nodes --no-headers | grep -q Ready";
-          healthIntervalSecs = 10;
-          healthTimeoutSecs = 15;
-        };
-      };
+            # Declared to the guest agent's probe loop; the agent runs the
+            # drop-in and serves ProbeStatus over vsock. Readiness = this node
+            # is Ready.
+            healthChecks.node-ready = {
+              healthCmd = "${pkgs.k3s}/bin/k3s kubectl --kubeconfig /data/k3s/k3s.yaml get nodes --no-headers | grep -q Ready";
+              healthIntervalSecs = 10;
+              healthTimeoutSecs = 15;
+            };
+          };
+          meta = rootfsPkg.passthru.mvm;
+          # Serialize the sidecar in-nix (the rootless-tenant contract): the
+          # builder-VM runtime reads $out/mvm-meta.json without evaluating
+          # anything. Protocol version is locked to
+          # PROTOCOL_VERSION_AUTHENTICATED in mvm-contract.
+          sidecarJson = builtins.toJSON {
+            inherit (meta)
+              name accessible sealed entrypointKind initSystem
+              expectedBootMs agentBinary rootlessEntrypoint hypervisor
+              overlayAware runtimeLean;
+            imageTag = "";
+            source = "built-local";
+            builtAt = "";
+            protocolVersion = 2;
+            generatorRev = "";
+          };
+        in
+        pkgs.runCommand "kubernetes-vm-image"
+          { passthru = { rootfs = rootfsPkg; }; }
+          ''
+            set -euo pipefail
+            mkdir -p $out
+            if [ -f ${rootfsPkg} ]; then
+              cp ${rootfsPkg} $out/rootfs.ext4
+            else
+              img=$(find ${rootfsPkg} -maxdepth 1 \( -name '*.img' -o -name '*.ext4' \) | head -1)
+              [ -n "$img" ] || { echo "mkGuest output ${rootfsPkg} has no .img/.ext4" >&2; exit 1; }
+              cp "$img" $out/rootfs.ext4
+            fi
+            cat > $out/mvm-meta.json <<'META'
+            ${sidecarJson}
+            META
+            chmod 0644 $out/rootfs.ext4 $out/mvm-meta.json
+          '';
     };
 }
