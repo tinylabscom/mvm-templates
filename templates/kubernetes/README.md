@@ -73,6 +73,31 @@ its move into mvm-images; tracked in tinylabscom/mvm-templates#1).
 Everything external still leaves over the vsock egress plane; the in-guest
 datapath carries only cluster-internal traffic.
 
+### Boot-image capability today: the mvm-images `datapath` kernel
+
+The capability is the generically-named **`datapath` kernel posture in
+mvm-images** (tinylabscom/mvm-images PR #24): the rootless floor plus an
+in-guest datapath (network namespace, bridge/veth, netfilter) — no NIC, no
+TUN, no external reachability. It is the `workload-k8s` successor under the
+image train's no-consumer-names rule. mvm consumes it through the bridge in
+tinylabscom/mvm#3644 (stacked on #3587): `MVM_IMAGES_DIR=<checkout> mvmctl
+kernel build --which workload-k8s` builds the datapath kernel from the
+checkout's kernel flake, and the dev-tier `MVM_WORKLOAD_KERNEL_VARIANT`
+override boots it.
+
+### Blocker status (2026-09-23): upstream kernel bug, not this template
+
+tinylabscom/mvm#3599 — clone() failing inside a fresh PID namespace — is
+resolved to root cause: a long-standing upstream kernel bug under
+virtualization (reproduced under TCG, HVF, and x86_64 KVM; kernels 6.1
+through 6.18; pristine userspace; independent hosts). Every pod sandbox is a
+fresh PID namespace, so k3s pods cannot start on virtualized hosts until
+upstream fixes it or an environmental precondition is found. The template's
+bring-up chain (cgroup2 delegation, uid-901 identity, /dev/kmsg faking,
+egress wiring) is validated; the node-level smoke test resumes when the
+platform bug is resolved. See #3599 for the evidence matrix and the
+ready-to-file upstream report draft.
+
 ## Open items the smoke test must settle
 
 - RootlessKit single-uid mapping: whether k3s `--rootless` needs
