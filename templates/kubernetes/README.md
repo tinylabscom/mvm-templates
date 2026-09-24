@@ -73,17 +73,25 @@ its move into mvm-images; tracked in tinylabscom/mvm-templates#1).
 Everything external still leaves over the vsock egress plane; the in-guest
 datapath carries only cluster-internal traffic.
 
-### Boot-image capability today: the mvm-images `datapath` kernel
+### Boot-image capability: the `workload-k8s` kernel, and the invariant
 
-The capability is the generically-named **`datapath` kernel posture in
-mvm-images** (tinylabscom/mvm-images PR #24): the rootless floor plus an
-in-guest datapath (network namespace, bridge/veth, netfilter) — no NIC, no
-TUN, no external reachability. It is the `workload-k8s` successor under the
-image train's no-consumer-names rule. mvm consumes it through the bridge in
-tinylabscom/mvm#3644 (stacked on #3587): `MVM_IMAGES_DIR=<checkout> mvmctl
-kernel build --which workload-k8s` builds the datapath kernel from the
-checkout's kernel flake, and the dev-tier `MVM_WORKLOAD_KERNEL_VARIANT`
-override boots it.
+The boot-image capability is "rootless floor + in-guest network
+namespaces" (this template's pods are network namespaces). A generically
+named `datapath` kernel posture (bridge/veth/netfilter in mvm-images) was
+proposed and **rejected by the image lane**: guest network devices of any
+kind violate the permanent mvm-images invariant (tinylabscom/mvm-images
+PR #24, closed). The interim kernel remains mvm's in-repo
+`workload-k8s` variant (tinylabscom/mvm#3572, consumed via
+`mvmctl kernel build --which workload-k8s` and the dev-tier
+`MVM_WORKLOAD_KERNEL_VARIANT` boot override from #3587).
+
+The invariant-compatible durable shape is the one the mvm-images contract
+itself names: **host networking inside the guest plus the injected loopback
+egress proxy** — k3s runs with pod networking disabled and every external
+byte still crosses the authenticated vsock session. What Kubernetes
+semantics survive that shape (service addressing on loopback, port
+allocation across pods) is an open design item for this template; the
+cgroup2/uid/kmsg bring-up chain below is validated either way.
 
 ### Blocker status (2026-09-23): upstream kernel bug, not this template
 
