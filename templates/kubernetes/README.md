@@ -38,10 +38,18 @@ Cluster state lives on a writable ext4 disk volume at `/data` (the rootfs is
 read-only): attach one at launch, no hot-plug:
 
 ```sh
-mvmctl machine run -d --name k8s --flake . \
-  --mount ./k3s-data:/data:20G:rw \
-  --allow-host registry-1.docker.io:443
+MVM_WORKLOAD_KERNEL_VARIANT=workload-k8s \
+mvmctl machine run -d --name k8s --profile dev --flake . \
+  --mount ./k3s-data.img:/data:20G:rw \
+  --allow-host registry-1.docker.io:443 \
+  --allow-host auth.docker.io:443 \
+  --allow-host production.cloudflare.docker.com:443
 ```
+
+A sized mount is a disk image, so the host path must be a file (created on
+first use), not a directory. A `:rw` volume needs `--profile dev` (or
+`permissive`). Docker Hub pulls need all three hosts: the registry, the token
+service, and the blob CDN.
 
 k3s runs with `--data-dir=/data/k3s`; containerd state (including pulled
 images) is under it, so the cluster survives reboots on the same volume.
@@ -93,18 +101,19 @@ semantics survive that shape (service addressing on loopback, port
 allocation across pods) is an open design item for this template; the
 cgroup2/uid/kmsg bring-up chain below is validated either way.
 
-### Blocker status (2026-09-23): upstream kernel bug, not this template
+### Status (2026-09-25): no known kernel blocker; bring-up unfinished
 
-tinylabscom/mvm#3599 — clone() failing inside a fresh PID namespace — is
-resolved to root cause: a long-standing upstream kernel bug under
-virtualization (reproduced under TCG, HVF, and x86_64 KVM; kernels 6.1
-through 6.18; pristine userspace; independent hosts). Every pod sandbox is a
-fresh PID namespace, so k3s pods cannot start on virtualized hosts until
-upstream fixes it or an environmental precondition is found. The template's
-bring-up chain (cgroup2 delegation, uid-901 identity, /dev/kmsg faking,
-egress wiring) is validated; the node-level smoke test resumes when the
-platform bug is resolved. See #3599 for the evidence matrix and the
-ready-to-file upstream report draft.
+tinylabscom/mvm#3599 ("clone() fails inside a fresh PID namespace") is **not**
+an upstream kernel bug. Every probe ran `unshare -Urmp` without `--fork`: the
+namespace's init was the first short-lived child, so later forks failed ENOMEM
+and Go's `CLONE_THREAD` failed EINVAL. The same probe fails on bare metal and
+succeeds with `--fork`. This template's own start script had the same shape;
+it now runs `unshare -Urmpf`, so k3s is PID 1 of the namespace it creates.
+
+What is verified: the image builds (`mvmctl machine build --flake . --dev`,
+about 1 GiB). A real k3s pod has not yet run on the `workload-k8s` kernel;
+the open items below are what that run has to settle. This template is a low
+priority and is parked here.
 
 ## Open items the smoke test must settle
 

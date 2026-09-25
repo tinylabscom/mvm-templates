@@ -62,14 +62,18 @@
         # Bring-up shape, from live smoke findings: RootlessKit is out - v2
         # still demands /etc/subuid plus a setuid newuidmap, and a sealed
         # image can carry neither. Instead this is plain rootful k3s inside
-        # a user namespace (unshare -Urmp, the same primitive the generic
-        # rootless tenant probe exercises): inside it we are uid 0 with
+        # a user namespace (unshare -Urmpf, the same primitive the generic
+        # rootless tenant probe exercises). --fork is load-bearing: without
+        # it unshare execs k3s in the parent PID namespace, the first child
+        # becomes the new namespace's init and every later fork fails ENOMEM
+        # once it exits, and Go cannot create threads at all (clone with
+        # CLONE_THREAD returns EINVAL). Inside the namespace we are uid 0 with
         # NET_ADMIN in the owned namespace, on the guest's single network
         # (the NIC-less contract: no upstream exists for a slirp4netns-style
         # stack). The kubelet hard-requires /dev/kmsg, which root-in-userns
         # cannot read, so bind /dev/null over it inside the owned mount
         # namespace - OOM events simply go unobserved.
-        exec unshare -Urmp sh -c '
+        exec unshare -Urmpf sh -c '
           mount --bind /dev/null /dev/kmsg 2>/dev/null || true
           exec ${pkgs.k3s}/bin/k3s server \
             --data-dir="$DATA_DIR" \
